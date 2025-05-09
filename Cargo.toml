@@ -5,8 +5,11 @@ edition = "2021"
 
 [dependencies]
 color-eyre = "0.6.4"
+eyre = "0.6.12"
 grammers-client = "0.7.0"
+grammers-tl-types = "0.7.0"
 log = "0.4.27"
 ratatui = "0.29.0"
+rusqlite = "0.35.0"
 simple-logging = "2.0.2"
 tokio = {version = "1.45.0", features = ["rt"]}

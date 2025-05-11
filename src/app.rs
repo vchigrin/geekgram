@@ -11,7 +11,12 @@ impl<'a> App<'a> {
     }
 
     pub async fn run(&mut self, mut _terminal: ratatui::DefaultTerminal) -> Result<()> {
-        let _dialogs = self.app_runtime.get_dialogs();
+        let dialogs = self.app_runtime.get_dialogs().await?;
+        if !dialogs.is_empty() {
+            self.app_runtime
+                .start_message_refreshing(dialogs[0].chat.clone())
+                .await?;
+        }
         // TODO: Display UI.
         Ok(())
     }

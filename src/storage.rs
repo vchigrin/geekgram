@@ -1,7 +1,7 @@
 use color_eyre::Result;
 use eyre::eyre;
 use grammers_client::session::Session;
-use grammers_client::types::{Channel, Chat, Dialog, Group, User};
+use grammers_client::types::{Channel, Chat, Dialog, Group, Message, MessageDeletion, User};
 use grammers_tl_types as tl_types;
 use grammers_tl_types::Cursor;
 use grammers_tl_types::Deserializable;
@@ -9,6 +9,14 @@ use grammers_tl_types::Serializable;
 
 pub struct Storage {
     connection: rusqlite::Connection,
+}
+
+fn peer_id(peer: &tl_types::enums::Peer) -> i64 {
+    match peer {
+        tl_types::enums::Peer::User(user) => user.user_id,
+        tl_types::enums::Peer::Chat(group) => group.chat_id,
+        tl_types::enums::Peer::Channel(channel) => channel.channel_id,
+    }
 }
 
 impl Storage {
@@ -19,6 +27,7 @@ impl Storage {
         Self::ensure_blob_table(&connection, "channels")?;
         Self::ensure_blob_table(&connection, "dialogs")?;
         Self::ensure_blob_table(&connection, "session")?;
+        Self::ensure_messages_table(&connection)?;
         let result = Self { connection };
         Ok(result)
     }
@@ -29,6 +38,14 @@ impl Storage {
             table_name
         );
         connection.execute(&statement, ())?;
+        Ok(())
+    }
+
+    fn ensure_messages_table(connection: &rusqlite::Connection) -> Result<()> {
+        let statement = "CREATE TABLE IF NOT EXISTS messages
+            (peer_id INTEGER, message_id INTEGER, date INTEGER, data BLOB,
+             PRIMARY KEY(peer_id, message_id));";
+        connection.execute(statement, ())?;
         Ok(())
     }
 
@@ -115,6 +132,37 @@ impl Storage {
 
     pub fn save_channel(&self, channel: &Channel) -> Result<()> {
         self.save_generic("channels", channel.id(), &channel.raw)
+    }
+
+    pub fn save_message(&self, message: &Message) -> Result<()> {
+        let statement = "INSERT OR REPLACE INTO messages(peer_id, message_id, date, data)
+             VALUES (?, ?, ?, ?);";
+        let mut cached_statement = self.connection.prepare_cached(statement)?;
+        let serialized = message.raw.to_bytes();
+        cached_statement.execute((
+            peer_id(&message.raw.peer_id),
+            message.id(),
+            message.date().timestamp(),
+            serialized,
+        ))?;
+        Ok(())
+    }
+
+    pub fn delete_message(&self, message_deletion: &MessageDeletion) -> Result<()> {
+        if let Some(channel_id) = message_deletion.channel_id() {
+            let statement = "DELETE FROM messages WHERE peer_id = ? AND message_id = ?";
+            let mut cached_statement = self.connection.prepare_cached(statement)?;
+            for msg_id in message_deletion.messages() {
+                cached_statement.execute((channel_id, msg_id))?;
+            }
+        } else {
+            let statement = "DELETE FROM messages WHERE message_id = ?";
+            let mut cached_statement = self.connection.prepare_cached(statement)?;
+            for msg_id in message_deletion.messages() {
+                cached_statement.execute([msg_id])?;
+            }
+        }
+        Ok(())
     }
 
     fn load_chat(&self, peer: tl_types::enums::Peer) -> Result<Chat> {

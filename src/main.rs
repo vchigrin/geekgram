@@ -6,6 +6,7 @@ mod app;
 mod runtime;
 mod storage;
 mod tg_client_builder;
+mod ui;
 
 fn main() -> Result<()> {
     color_eyre::install()?;

@@ -5,7 +5,9 @@ edition = "2021"
 
 [dependencies]
 color-eyre = "0.6.4"
+crossterm = { version ="0.28.0", features=["event-stream"]}
 eyre = "0.6.12"
+futures = "0.3.31"
 grammers-client = "0.7.0"
 grammers-tl-types = "0.7.0"
 log = "0.4.27"

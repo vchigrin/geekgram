@@ -5,9 +5,10 @@ use crossterm::event::{Event, EventStream, KeyCode, KeyEvent};
 use futures::StreamExt;
 use ratatui::style::Color;
 use ratatui::{DefaultTerminal, Frame};
+use std::sync::Arc;
 
-pub struct App<'a> {
-    app_runtime: &'a Runtime,
+pub struct App {
+    app_runtime: Arc<Runtime>,
     event_stream: EventStream,
     should_run: bool,
     root_control: Box<dyn ui::Control>,
@@ -30,16 +31,14 @@ impl ui::Control for DummyControl {
     }
 }
 
-impl<'a> App<'a> {
-    pub fn new(app_runtime: &'a Runtime) -> Self {
-        let left = Box::new(DummyControl {
-            color: Color::Green,
-        });
+impl App {
+    pub fn new(app_runtime: Arc<Runtime>) -> Self {
+        let left = Box::new(ui::DialogsListControl::new(app_runtime.clone()));
         let right = Box::new(DummyControl { color: Color::Blue });
         let root_control = ui::TwoPanelsControl::new(
             left,
             right,
-            Some("Left panel".to_string()),
+            Some("Dialogs".to_string()),
             Some("Right panel".to_string()),
         );
         Self {
@@ -51,7 +50,8 @@ impl<'a> App<'a> {
     }
 
     pub async fn run(&mut self, mut terminal: DefaultTerminal) -> Result<()> {
-        let dialogs = self.app_runtime.get_dialogs().await?;
+        // TODO(vchigrin): Remove after implementing Messages list.
+        let dialogs = self.app_runtime.get_dialogs()?;
         if !dialogs.is_empty() {
             self.app_runtime
                 .start_message_refreshing(dialogs[0].chat.clone())

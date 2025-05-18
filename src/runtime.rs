@@ -2,8 +2,8 @@ use color_eyre::Result;
 use grammers_client::types::{Chat, Dialog};
 use grammers_client::{Client, Update};
 use std::sync::Arc;
+use std::sync::Mutex;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::sync::Mutex;
 
 use super::storage;
 
@@ -101,7 +101,7 @@ impl Runtime {
         while let Some(msg) = messages.next().await? {
             all_messages.push(msg);
         }
-        let locked_state = shared_state.lock().await;
+        let locked_state = shared_state.lock().unwrap();
         for message in all_messages {
             locked_state.storage.save_message(&message)?;
         }
@@ -111,15 +111,15 @@ impl Runtime {
     async fn handle_update(shared_state: &Arc<Mutex<SharedState>>, update: Update) -> Result<()> {
         match update {
             Update::NewMessage(message) => {
-                let locked_state = shared_state.lock().await;
+                let locked_state = shared_state.lock().unwrap();
                 locked_state.storage.save_message(&message)?;
             }
             Update::MessageEdited(message) => {
-                let locked_state = shared_state.lock().await;
+                let locked_state = shared_state.lock().unwrap();
                 locked_state.storage.save_message(&message)?;
             }
             Update::MessageDeleted(message_deletion) => {
-                let locked_state = shared_state.lock().await;
+                let locked_state = shared_state.lock().unwrap();
                 locked_state.storage.delete_message(&message_deletion)?;
             }
             _ => {
@@ -139,15 +139,15 @@ impl Runtime {
             retrieved_dialogs.push(dialog);
         }
 
-        let i = shared_state.lock().await;
+        let i = shared_state.lock().unwrap();
         for dialog in retrieved_dialogs {
             i.storage.save_dialog(&dialog)?
         }
         Ok(())
     }
 
-    pub async fn get_dialogs(&self) -> Result<Vec<Dialog>> {
-        let i = self.shared_state.lock().await;
+    pub fn get_dialogs(&self) -> Result<Vec<Dialog>> {
+        let i = self.shared_state.lock().unwrap();
         i.storage.select_all_dialogs()
     }
 
@@ -156,6 +156,10 @@ impl Runtime {
             .send(Command::RefreshMessages(chat))
             .await?;
         Ok(())
+    }
+
+    pub fn set_active_dialog(&self, chat_id: i64) {
+        log::info!("Activating dialog {}", chat_id);
     }
 
     pub async fn stop(self) -> Result<()> {
